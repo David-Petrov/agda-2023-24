@@ -116,17 +116,25 @@ open import Lib.Eq
 --
 
 
-{-
+
 -- TASK
 -- Implement a linear and constant space tail recursive version of Nat addition
 addNat : Nat -> Nat -> Nat
-addNat = ?
+addNat zero y = y
+addNat (suc x) y = addNat x (suc y)
+
 
 -- TASK
 -- Prove that your addNat behaves like +N.
 -- Think about what lemma you'll need to formulate for the recursive case.
+-- addNat-right-suc : (n m : Nat) -> addNat n (suc m) == suc (addNat n m)
+-- addNat-right-suc zero m = refl
+-- addNat-right-suc (suc n) m = {! +N-right-suc n m  !}
+
 addNat-==-+N : (n m : Nat) -> addNat n m == n +N m
-addNat-==-+N = ?
+addNat-==-+N zero m = refl
+addNat-==-+N (suc n) m = ==-trans (addNat-==-+N n (suc m)) (==-symm (+N-right-suc n m))
+
 
 -- Traditionally defined recursive lists, parametrised by the type of elements in them.
 data List (a : Set) : Set where
@@ -144,11 +152,14 @@ _+L_ : {A : Set} -> List A -> List A -> List A
 
 infixr 22 _+L_
 
+
 -- TASK
 -- Prove that +L is associative
 +L-assoc : {A : Set} (xs ys zs : List A) -> (xs +L ys) +L zs == xs +L (ys +L zs)
-+L-assoc = ?
++L-assoc [] ys zs = refl
++L-assoc (x ,- xs) ys zs = ap (x ,-_) (+L-assoc xs ys zs)
 
+{-
 -- TASK
 -- Formulate and prove that [] is a right identity for +L
 +L-right-id : ?

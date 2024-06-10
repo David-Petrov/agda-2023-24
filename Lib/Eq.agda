@@ -26,8 +26,17 @@ _$=_ :
   x == y ->
   f x == f y
 _$=_ = ap
-
 infixr 5 _$=_
+
+_=$_ :
+  {A B : Set} ->
+  {f g : A -> B} ->
+  f == g ->
+  (x : A) ->
+  f x == g x
+refl =$ _ = refl
+infixl 4 _=$_
+
 
 ==-symm : {A : Set} {x y : A} -> x == y -> y == x
 ==-symm refl = refl

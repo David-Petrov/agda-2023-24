@@ -51,8 +51,6 @@ Closed ty = Lam [] ty
 -- \x -> x => \x -> x
 
 
-
-{-
 -- TASK
 -- A substitution that "performs one computation"
 --
@@ -78,7 +76,9 @@ reduceSubst :
   {gamma : Context} {tau : Type} ->
   Lam gamma tau ->
   Subst (gamma -, tau) gamma
-reduceSubst = ?
+reduceSubst M Z = M
+reduceSubst M (S tauInGamma) = var tauInGamma
+
 
 -- NOTE
 -- A convenient synonym for substituting by reduceSubst
@@ -92,6 +92,7 @@ x [0=> t ] = subst (reduceSubst t) x
 
 
 infix 15 _[0=>_]
+
 
 -- NOTE
 -- Some unit tests for your substitution and reduceSubst
@@ -115,12 +116,15 @@ _ :
   lam (` 0)
 _ = refl
 
+-- λx. y (y x)
 foo0 : Lam [ base 0 => base 0 ] (base 0 => base 0)
 foo0 = lam (app (` 1) (app (` 1) (` 0)))
 
+-- λx. x
 foo1 : Lam [] (base 0 => base 0)
 foo1 = lam (` 0)
 
+-- λx. (λy. y) ((λy. y) x)
 foo2 : Lam [] (base 0 => base 0)
 foo2 = lam (app (lam (` 0)) (app (lam (` 0)) (` 0)))
 
@@ -136,7 +140,10 @@ _ = refl
 -- to expressing the fact that lam N is a value.
 -- Val N = "доказателство че N е стойност"
 data Val : {ctx : Context} {ty : Type} -> Lam ctx ty -> Set where
-  v-lam : ? -> Val ?
+  v-lam : {gamma : Context}
+          {t1 t2 : Type} ->
+          {N : Lam (gamma -, t1) t2} ->
+          Val (lam N)
 
 -- TASK
 -- N ==> M is going to express the relation that N beta reduces to M.
@@ -184,13 +191,57 @@ data Val : {ctx : Context} {ty : Type} -> Lam ctx ty -> Set where
 -- We do this so that we always have only a single way we could proceed with reduction, which simplifies our proofs later.
 --
 -- So our third constructor should state the following:
--- If N is a value, and we can reduce M to M', then we can reduce app V M to app V M'
+-- If N is a value, and we can reduce M to M', then we can reduce app N M to app N M'
 --
 -- Note that if we instead drop the "If N is a value" part, we can then choose to apply either red-app-l or red-app-r in some terms, e.g. in
 -- ((λ0) (λ0)) ((λ0) (λ0))
 --
 -- TODO drop constructors
 data _==>_ {ctx : Context} {ty : Type} : Lam ctx ty -> Lam ctx ty -> Set where
+  -- -- Copilot version :D :
+  -- red-beta :
+  --   {gamma : Context} {t1 t2 : Type} ->
+  --   {N : Lam (gamma -, t1) t2} ->
+  --   {M : Lam gamma t1} ->
+  --   Val M ->
+  --   app (lam N) M ==> N [0=> M ]
+
+  red-beta :
+    {t1 : Type} ->
+    {N : Lam (ctx -, t1) ty} ->
+    {M : Lam ctx t1} ->
+    Val M ->
+    app (lam N) M ==> N [0=> M ]
+
+  -- red-app-l :
+  --   {gamma : Context} {t1 t2 : Type} ->
+  --   {N M : Lam gamma t1} ->
+  --   {M' : Lam gamma t1} ->
+  --   N ==> M' ->
+  --   N `app` M ==> M' `app` M
+
+  red-app-l :
+    {t1 : Type}
+    {N N' : Lam ctx (t1 => ty)} ->
+    {M : Lam ctx t1} ->
+    N ==> N' ->
+    app N M ==> app N' M
+
+  -- red-app-r :
+  --   {gamma : Context} {t1 t2 : Type} ->
+  --   {N : Lam gamma t1} ->
+  --   Val N ->
+  --   {M M' : Lam gamma t1} ->
+  --   M ==> M' ->
+  --   N `app` M ==> N `app` M'
+
+  red-app-r :
+    {t1 : Type} ->
+    {N : Lam ctx (t1 => ty)} ->
+    Val N ->
+    {M M' : Lam ctx t1} ->
+    M ==> M' ->
+    app N M ==> app N M'
 
 infix 2 _==>_
 
@@ -201,6 +252,8 @@ infix 2 _==>_
 -- 1. Any term reduces to itself (reflexivity)
 -- 2. If N ==> M and M ==>> L, then N ==>> L (transitivity)
 data _==>>_ {ctx : Context} {ty : Type} : Lam ctx ty -> Lam ctx ty -> Set where
+  red-refl : {N : Lam ctx ty} -> N ==>> N
+  red-trans : {N M L : Lam ctx ty} -> N ==> M -> M ==>> L -> N ==>> L
 
 infix 2 _==>>_
 
@@ -211,7 +264,7 @@ infix 2 _==>>_
 -- TASK
 -- Synonym for reflexivity, used to end our proofs, much like we used _QED
 _BQED : {ctx : Context} {ty : Type} (N : Lam ctx ty) -> N ==>> N
-N BQED = ?
+N BQED = red-refl
 
 infix 3 _BQED
 
@@ -224,15 +277,24 @@ _=>[_]_ :
   N ==> M ->
   M ==>> L ->
   N ==>> L
-N =>[ p ] q = ?
+N =>[ p ] q = red-trans p q
 infixr 2 _=>[_]_
+
+_=>[]_ :
+  {ctx : Context} {ty : Type} ->
+  {L : Lam ctx ty} ->
+  (M : Lam ctx ty) ->
+  M ==>> L ->
+  M ==>> L
+M =>[] p = p
+infixr 2 _=>[]_
 
 -- TASK
 -- write
 -- (λ0)
 -- as a Lam
-idLam : ?
-idLam = ?
+idLam : {ty : Type} -> Lam [] (ty => ty)
+idLam = lam (` 0)
 
 module Ex1 where
 
@@ -240,15 +302,21 @@ module Ex1 where
   -- Write
   -- ((λ0) (λ0)) (λ0)
   -- as a Lam
-  ex1 : ?
-  ex1 = ?
+  ex1 : Lam [] (alpha => alpha)
+  ex1 = app (app idLam idLam) idLam
 
   -- TASK
   -- Prove that ex1 reduces to idLam
   _ : ex1 ==>> idLam
   _ =
-    ex1 =>[ {! !} ]
-    idLam BQED
+    ex1
+      =>[]
+    app (app idLam idLam) idLam
+      =>[ red-app-l (red-beta v-lam) ]
+    app idLam idLam
+      =>[ red-beta v-lam ]
+    idLam
+      BQED
 
 module Ex2 where
 
@@ -256,25 +324,39 @@ module Ex2 where
   -- Write
   -- (λ0) ((λ0) (λ0))
   -- as a Lam
-  ex2 : ?
-  ex2 = ?
+  ex2 : Lam [] (alpha => alpha)
+  ex2 = app idLam (app idLam idLam)
 
   -- TASK
   -- Prove that ex1 reduces to idLam
   _ : ex2 ==>> idLam
   _ =
-    ex2 =>[ {! !} ]
-    idLam BQED
+    ex2
+      =>[]
+    app idLam (app idLam idLam)
+      =>[ red-app-r v-lam (red-beta v-lam) ]
+    app idLam idLam
+      =>[ red-beta v-lam ]
+    idLam
+      BQED
 
 -- TASK
 -- Formulate and prove that if a term is a value, then it cannot reduce.
-Val-no-red : ?
-Val-no-red = ?
+Val-no-red :
+  {ctx : Context} {ty : Type}
+  {N M : Lam ctx ty}
+  -> Val N
+  -> Not (N ==> M)
+Val-no-red v-lam ()
 
 -- TASK
 -- Formulate and prove that if a term can reduce, then it is not a value
-no-red-Val : ?
-no-red-Val = ?
+no-red-Val :
+  {ctx : Context} {ty : Type}
+  {N M : Lam ctx ty}
+  -> N ==> M
+  -> Not (Val N)
+no-red-Val () v-lam
 
 -- TASK
 -- We'll want to formulate, prove, and use the following property:
@@ -282,16 +364,27 @@ no-red-Val = ?
 --
 -- Implement a data type which captures these two possibilities for a given term N.
 data Progress {ty : Type} (N : Lam [] ty) : Set where
+  progress-val : Val N -> Progress N
+  progress-red : (M : Lam [] ty) -> N ==> M -> Progress N
 
 -- TASK
 -- Prove the progress property, as stated above.
 progress : {ty : Type} -> (N : Lam [] ty) -> Progress N
-progress = ?
+progress (lam N) = progress-val v-lam
+progress (app N M) with progress N | progress M
+... | progress-val (v-lam {N = N}) | progress-val valM = progress-red (N [0=> M ]) (red-beta valM)
+... | progress-val valN | progress-red M1 x = progress-red (app N M1) (red-app-r valN x)
+... | progress-red N1 x | x2 = progress-red (app N1 M) (red-app-l x)
+-- progress (lam N) = progress-val v-lam
+
 
 -- TASK
 -- Implement a function which determines if a given term is a value by using progress.
 decVal : {ty : Type} -> (N : Lam [] ty) -> Dec (Val N)
-decVal = ?
+decVal N with progress N
+... | progress-val x = yes x
+... | progress-red _ x = no (no-red-Val x)
+
 
 data Maybe (A : Set) : Set where
   no : Maybe A
@@ -319,5 +412,10 @@ data Steps {ty : Type} : Lam [] ty -> Set where
 -- Agda's termination checker, so instead we use this Nat to be the decreasing value for each
 -- recursive call, guaranteeing that we won't loop forever and making Agda happy.
 eval : {ty : Type} -> Nat -> (N : Lam [] ty) -> Steps N
-eval = ?
--}
+eval zero N with progress N
+... | progress-val valN = steps N red-refl (yes valN)
+... | progress-red M N==>M = steps M (red-trans N==>M red-refl) no -- we don't have any steps left, so we must say "no"
+eval (suc n) N with progress N
+... | progress-val valN = steps N red-refl (yes valN)
+... | progress-red M N==>M with eval n M
+... | steps M1 M==>>M1 maybeValM1 = steps M1 (red-trans N==>M M==>>M1) maybeValM1

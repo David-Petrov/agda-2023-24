@@ -16,8 +16,6 @@ open import Lib.Fun
 -- * Lib.Fun with flip
 -- * modules
 
-
-
 --module Lists (A : Set) where
 --
 --  +L-assoc' : (xs ys zs : List A) -> List A
@@ -65,18 +63,21 @@ _ : 3 <= 5
 _ = osuc (osuc (osuc ozero))
 
 _ : LeqNat 3 5
-_ = {! !}
+_ = <>
 
 -- TASK
 -- Compare two numbers - it should be the case that we
 -- either have n <= m or m <= n
 decLeqNat : (n m : Nat) -> LeqNat n m + LeqNat m n
-decLeqNat = {! !}
+decLeqNat zero m = inl <>
+decLeqNat (suc n) zero = inr <>
+decLeqNat (suc n) (suc m) = decLeqNat n m
 
 -- TASK
 -- Convert from _<=_ to LeqNat
 <=-LeqNat : {n m : Nat} -> n <= m -> LeqNat n m
-<=-LeqNat = {! !}
+<=-LeqNat ozero = <>
+<=-LeqNat (osuc x) = <=-LeqNat x
 
 module
   Sorting
@@ -96,12 +97,24 @@ module
   LeqBound x +inf = One
   LeqBound _ _ = Zero
 
+  LeqBoundTrans : {x y z : Bound} -> LeqBound x y -> LeqBound y z -> LeqBound x z
+  LeqBoundTrans { -inf} { -inf} { -inf} xy yz = <>
+  LeqBoundTrans { -inf} { -inf} {inKey x} xy yz = <>
+  LeqBoundTrans { -inf} { -inf} {+inf} xy yz = <>
+  LeqBoundTrans { -inf} {inKey x} {inKey x1} xy yz = <>
+  LeqBoundTrans { -inf} {inKey x} {+inf} xy yz = <>
+  LeqBoundTrans { -inf} {+inf} {+inf} xy yz = <>
+  LeqBoundTrans {inKey x'} {inKey y'} {inKey z'} xy yz = {!   !} -- TODO: how Leq transitivity????
+  LeqBoundTrans {inKey x} {inKey x1} {+inf} xy yz = <>
+  LeqBoundTrans {inKey x} {+inf} {+inf} xy yz = <>
+  LeqBoundTrans {+inf} {+inf} {+inf} xy yz = <>
+
 
   data BST (lo hi : Bound) : Set where
     empty : LeqBound lo hi -> BST lo hi
     node : (x : Key) (l : BST lo (inKey x)) (r : BST (inKey x) hi) -> BST lo hi
 
-{-
+{--
   -- TASK
   -- We'll be implementing sorting of Lists by doing the following
   -- 1. We'll define a type of ordered lists (OList), similar to BST
@@ -111,28 +124,39 @@ module
   -- In this way, we'll get sorting that's (almost) correct by oconstruction,
   -- since we'll define OLists thanks to 1.
   -- The "actual" sorting will happen in the intermediate step
-
+--}
   -- TASK
   -- Implement insertion into a BST
   -- You'll need to use _<=?_ to compare two values
   -- The ? in the signature is left there for you to fill in with the appropriate
   -- oconstraints that you think you'll need.
   insert :
-    {lo hi : Bound} (k : Key) ->
-    ? ->
-    BST lo hi -> BST lo hi
-  insert = ?
+    {lo hi : Bound}
+    (key : Key) ->
+    (loLeqKey : LeqBound lo (inKey key)) ->
+    (keyLeqHi : LeqBound (inKey key) hi) ->
+    (tree : BST lo hi) -> BST lo hi
+  insert key loLeqKey keyLeqHi (empty x) = node key (empty loLeqKey) (empty keyLeqHi)
+  insert key loLeqKey keyLeqHi (node x l r) with x <=? key
+  ... | inl xLeqKey = node x l (insert key xLeqKey keyLeqHi r)
+  ... | inr keyLeqX = node x (insert key loLeqKey keyLeqX l) r
+
 
   -- TASK
   -- Implement converting an ordinary list to a BST
   -- Note how the BST is unbounded, so that it's easier for us to implement this.
   listToBST : List Key -> BST -inf +inf
-  listToBST = ?
+  listToBST [] = empty <>
+  listToBST (x ,- keys) = insert x <> <> (listToBST keys)
+
 
   -- TASK
   -- Use the same idea as in BST to define "ordered lists"
   -- Be careful about what oconstraints you need in your recursive case!
   data OList (lo hi : Bound) : Set where
+    [] : {loLeqHi : LeqBound lo hi} -> OList lo hi
+    _,-_ : (x : Key) {_ : LeqBound lo (inKey x)} -> OList (inKey x) hi -> OList lo hi
+
 
   -- TASK
   -- You should be able to represent an ordered list as an OList
@@ -149,6 +173,14 @@ module
   -- * [4, 5, 1]
   -- as OLists
 
+  -- weaken : {lo hi lo' hi' : Bound} {l : LeqBound lo' lo} {r : LeqBound hi hi'} -> OList lo hi -> OList lo' hi'
+  -- weaken [] = []
+  -- weaken (x ,- xs) = {!   !}
+
+  -- concat : {lo1 hi1 lo2 hi2 : Bound} {hi1LeqLo2 : LeqBound hi1 lo2} -> OList lo1 hi1 -> OList lo2 hi2 -> OList lo1 hi2
+  concat : {lo1 mid hi2 : Bound} -> OList lo1 mid -> OList mid hi2 -> OList lo1 hi2
+  concat [] ys = {! ys  !}
+  concat (x ,- xs) ys = {!   !}
 
   -- TASK
   -- Implement the flattenBST operation, which converts a BST into an OList.
@@ -156,8 +188,10 @@ module
   -- think about what *exactly* it needs to be and implement it.
 
   flattenBST : {lo hi : Bound} -> BST lo hi -> OList lo hi
-  flattenBST = ?
+  flattenBST (empty loLeqHi) = [] {loLeqHi = loLeqHi}
+  flattenBST (node root l r) = {!   !}
 
+{-
   -- TASK
   -- Finally, we can sort lists by composing flattenBST and listToBST
   sort : List Key -> OList -inf +inf
@@ -201,32 +235,36 @@ open Sorting Nat LeqNat decLeqNat
 -- LeqBound 3 8 -> One
 -- LeqBound 8 5 -> Zero
 
-{-
+
 -- UNIT TESTS
 
 -- OList_UNIT_TESTS_SUCCESS
 -- []
-_ : OList ? ?
-_ = ?
+_ : OList (inKey 0) (inKey 0)
+_ = []
+
 
 -- [1, 2, 3]
-_ : OList ? ?
-_ = ?
+_ : OList (inKey 1) (inKey 3)
+_ = 1 ,- 2 ,- 3 ,- []
+
 
 -- [1, 5, 9]
-_ : OList ? ?
-_ = ?
+_ : OList (inKey 1) (inKey 9)
+_ = 1 ,- 5 ,- 9 ,- []
 
 -- OList_UNIT_TESTS_FAILURE
 
 -- [2, 1]
-_ : OList -inf +inf
-_ = ?
+-- _ : OList -inf +inf
+-- _ = 2 ,- 1 ,- []
 
--- [4, 5, 1]
-_ : OList -inf +inf
-_ = ?
+-- -- [4, 5, 1]
+-- _ : OList -inf +inf
+-- _ = 4 ,- 5 ,- 1 ,- []
 
+
+{-
 -- sortFroget_UNIT_TESTS
 _ : sortForget [] == []
 _ = refl

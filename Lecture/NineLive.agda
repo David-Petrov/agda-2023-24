@@ -84,7 +84,6 @@ _ : alpha In Gamma
 _ = S S Z
 
 
-{-
 
 -- TODO: In for lists
 -- TODO: replacing debruijn indices by membership proofs
@@ -97,7 +96,9 @@ _ = S S Z
 -- Indexing a context with a number which is "in bounds" of the context
 -- (i.e. the number used to index is less than the length of the context)
 ix : (n : Nat) (ctxt : Context) -> (Lt n (length ctxt)) -> Type
-ix = ?
+ix zero (ctxt -, x) _ = x
+ix (suc n) (ctxt -, x1) nLtLen = ix n ctxt nLtLen
+
 
 -- TASK
 --
@@ -115,7 +116,8 @@ ixIn :
   -- then we can not only fetch out the item at index n,
   -- but also get proof that it is In the context
   ix n ctxt p In ctxt
-ixIn = ?
+ixIn zero (ctxt -, x) _ = Z
+ixIn (suc n) (ctxt -, x) p = S ixIn n ctxt p
 
 -- TASK
 -- Use the lecture notes to guide you on implementing the data type for
@@ -123,43 +125,72 @@ ixIn = ?
 --
 -- Remember that we're using _In_ to express a typed debruijn index.
 data Lam (gamma : Context) : Type -> Set where
-  var : ?
-  app : ?
-  lam : ?
+  var : {t : Type} ->
+        t In gamma ->
+        Lam gamma t
+  app : {t1 t2 : Type} ->
+        (M : Lam gamma (t2 => t1)) -> -- function
+        (N : Lam gamma t2) ->         -- argument
+        Lam gamma t1                  -- "beta-reduced", i.e. applied
+  lam : {t1 t2 : Type} ->
+        (M : Lam (gamma -, t1) t2) -> -- body
+        Lam gamma (t1 => t2)          -- "abstracted", i.e. lambda
 
 -- TASK
 -- Write a term which is a single variable
 _ : Lam ([] -, alpha) alpha
-_ = {! !}
+_ = var Z
 
 -- TASK
 -- Write a term which is a single variable, in a context of two possibly variables.
-_ : Lam {! !} {! !}
-_ = {! !}
+_ : Lam ([] -, alpha -, beta) alpha
+_ = var (S Z)
 
 -- TASK
 -- Write the identity function term, i.e. λx.x
-_ : Lam {! !} {! !}
-_ = {! !}
+_ : Lam [] (alpha => alpha)
+_ = lam (var Z)
 
 -- TASK
 -- Write the "const" function, i.e. λx.λy.x
-_ : Lam {! !} {! !}
-_ = ?
+_ : Lam [] (alpha => beta => alpha)
+_ = lam (lam (var (S Z)))
 
 -- TASK
 -- Write the "s combinator", i.e. λf.λg.λx.f x (g x)
-_ : Lam ? ?
-_ = ?
+_ : Lam [] ((alpha => beta => gamma) => (alpha => beta) => alpha => gamma)
+_ = lam (lam (lam (app (app (var (S S Z)) (var Z)) (app (var (S Z)) (var Z)))))
+
 
 -- TASK
 -- This function will allow us to refer to variables by their "debruin indices",
 -- by implicitly converting numbers to In proofs (via ixIn), and then injecting them as vars.
 `_ : {ctxt : Context} (n : Nat) -> {p : Lt n (length ctxt)} -> Lam ctxt (ix n ctxt p)
-`_ = ?
+`_ {ctxt} n {p} = var (ixIn n ctxt p)
 
 -- TASK
 -- Repeat the examples from above, but with `_
+
+-- Write a term which is a single variable
+_ : Lam ([] -, alpha) alpha
+_ = ` 0
+
+-- Write a term which is a single variable, in a context of two possibly variables.
+_ : Lam ([] -, alpha -, beta) alpha
+_ = ` 1
+
+-- Write the identity function term, i.e. λx.x
+_ : Lam [] (alpha => alpha)
+_ = lam (` 0)
+
+-- Write the "const" function, i.e. λx.λy.x
+_ : Lam [] (alpha => beta => alpha)
+_ = lam (lam (` 1))
+
+-- Write the "s combinator", i.e. λf.λg.λx.f x (g x)
+_ : Lam [] ((alpha => beta => gamma) => (alpha => beta) => alpha => gamma)
+_ = lam (lam (lam (app (app (` 2) (` 0)) (app (` 1) (` 0)))))
+
 
 -- NOTE
 -- A renaming is a way for us to send any type in one context to another context.
@@ -172,12 +203,14 @@ Ren gamma delta = {tau : Type} -> tau In gamma -> tau In delta
 -- TASK
 -- The identity renaming, does nothing.
 idRename : {gamma : Context} -> Ren gamma gamma
-idRename = ?
+idRename t = t
+
 
 -- TASK
 -- A renaming that "shifts" all the variables "up by one".
 shift1Rename : {gamma : Context} {sigma : Type} -> Ren gamma (gamma -, sigma)
-shift1Rename = ?
+shift1Rename = S_
+
 
 -- TASK
 -- We can "extend" renamings
@@ -195,19 +228,23 @@ extRen :
   {sigma : Type} {gamma delta : Context} ->
   Ren gamma delta ->
   Ren (gamma -, sigma) (delta -, sigma)
-extRen = ?
+extRen _ Z = Z
+extRen gamma->delta (S tInGamma) = shift1Rename (gamma->delta tInGamma)
+
 
 -- TASK
 -- Applying/lifting a renaming to a term
 rename :
   {gamma delta : Context} ->
   -- if we have a renaming ρ
-  Ren gamma delta ->
+  (ρ : Ren gamma delta) ->
   -- and we have a typed term in the domain of that ρ
   {tau : Type} -> Lam gamma tau ->
   -- then we can rename all the variables by using ρ while preserving the type of the term
   Lam delta tau
-rename = ?
+rename ρ (var x) = var (ρ x)
+rename ρ (app M N) = app (rename ρ M) (rename ρ N)
+rename ρ (lam M) = lam (rename (extRen ρ) M)
 
 -- NOTE
 -- tl;dr Again, as with untyped Lams, we need to explicitly specify what our context is
@@ -227,18 +264,21 @@ rename = ?
 withContext : {tau : Type} (gamma : Context) -> Lam gamma tau -> Lam gamma tau
 withContext _ x = x
 
+
 -- NOTE
 -- Convenience synonyms for small contexts
 pattern [_] x = [] -, x
 pattern [_,_] x y = [] -, x -, y
 pattern [_,_,_] x y z = [] -, x -, y -, z
+pattern [_,_,_,_] a x y z = [] -, a -, x -, y -, z
+
 
 -- for example
 _ : Context
-_ = [ base 1 ]
+_ = [ beta ]
 
 _ : Context
-_ = [ base 2 , (base 1 => base 2) , base 1 ]
+_ = [ gamma , (beta => gamma) , beta ]
 
 -- UNIT TESTS
 -- Note that you might (unfortunately) also have to specify implicit args to internal lambdas here,
@@ -249,7 +289,7 @@ _ = [ base 2 , (base 1 => base 2) , base 1 ]
 _ : withContext [ base 5 ] (rename idRename (` 0)) == ` 0
 _ = refl
 
-_ : withContext [] (rename idRename (lam {[]} {alpha} {alpha} (` 0))) == lam (` 0)
+_ : withContext [] (rename idRename (lam {t2 = alpha} (` 0))) == lam (` 0)
 _ = refl
 
 -- Our shift renaming should.. shift
@@ -285,7 +325,7 @@ Subst gamma delta = {tau : Type} -> tau In gamma -> Lam delta tau
 -- TASK
 -- The substitution that replaces all variables with themselves.
 idSubst : {gamma : Context} -> Subst gamma gamma
-idSubst = ?
+idSubst tInGamma = var tInGamma
 
 -- TASK
 -- Once again, as with renamings, we can "extend" substitutions
@@ -302,7 +342,9 @@ extSubst :
   {gamma delta : Context} {sigma : Type} ->
   Subst gamma delta ->
   Subst (gamma -, sigma) (delta -, sigma)
-extSubst = ?
+extSubst _ Z = var Z
+extSubst gamma->delta (S tInGamma) = rename shift1Rename (gamma->delta tInGamma)
+
 
 -- TASK
 -- We can apply/extend substitutions to terms
@@ -314,20 +356,79 @@ subst :
   Lam gamma tau ->
   -- then we can apply θ to get a new term of the same type
   Lam delta tau
-subst = ?
+subst θ (var x) = θ x
+subst θ (app M N) = app (subst θ M) (subst θ N)
+subst θ (lam M) = lam (subst (extSubst θ) M)
 
 -- NOTE
 -- A "pretty" synonym for subst, somewhat mimicking some usual mathematical syntax
 -- for applying substitutions.
-_[_] :
-  {gamma delta : Context} {tau : Type} ->
-  Lam gamma tau ->
-  Subst gamma delta ->
-  Lam delta tau
-x [ th ] = subst th x
+-- _[_] :
+--   {gamma delta : Context} {tau : Type} ->
+--   Lam gamma tau ->
+--   Subst gamma delta ->
+--   Lam delta tau
+-- x [ θ ] = subst θ x
 
-infix 10 _[_]
+-- infix 10 _[_]
 
 -- UNIT TESTS
 -- Write some unit tests yourselves :P
+
+{-
+-- >>> csub ("x", Abs "x" (Var "z")) $ Abs "y" (Var "x")
+-- Abs "x1" (Abs "x" (Var "z"))
 -}
+
+_ : withContext [ beta ]
+  (subst
+    (\ {Z -> lam (` 1)})
+    (withContext [ alpha => beta ]
+      (lam {t1 = gamma} (` 1))))
+  ==
+  lam (lam (` 2))
+_ = refl
+
+
+-- GENERATED WITH ChatGPT (and hand-tailored to correctness)
+-- Additional Unit Tests
+
+-- Test renaming with identity renaming in a complex context
+_ : withContext [ alpha , beta , gamma ]
+    (rename idRename (` 2))
+  == ` 2
+_ = refl
+
+-- Test renaming with shift1Rename in a more complex context
+_ : withContext [ alpha , beta , gamma , delta ]
+    (rename shift1Rename
+      (withContext [ alpha , beta , gamma ]
+        (` 1)))
+  == ` 2
+_ = refl
+
+-- Test renaming with idRename on a lambda expression
+_ : withContext [ alpha => beta ]
+    (rename idRename (lam {t1 = gamma} (` 0)))
+  == lam (` 0)
+_ = refl
+
+-- Test renaming with shift1Rename on a lambda expression
+_ : withContext [ alpha => beta , gamma ]
+    (rename shift1Rename
+      (withContext [ alpha => beta ]
+        (lam {t1 = gamma} (` 0))))
+  == lam (` 0)
+_ = refl
+
+-- Test substitution with identity substitution
+_ : withContext [ alpha ]
+    (subst idSubst (` 0))
+  == ` 0
+_ = refl
+
+-- Test substitution with identity substitution on a lambda expression
+_ : withContext [ alpha => beta ]
+    (subst idSubst (lam {t1 = gamma} (` 0)))
+  == lam (` 0)
+_ = refl

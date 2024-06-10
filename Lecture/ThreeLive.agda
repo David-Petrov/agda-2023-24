@@ -142,8 +142,6 @@ IsEven'-desuc :
   IsEven' n
 IsEven'-desuc x = x
 
-
-
 -- Even and Odd as functions
 -- Even and Odd as examples for an indexed data type
 -- indexed vs function/calculated
@@ -230,14 +228,23 @@ infix 10 _/=_
 
 -- infixl 20 _$=_
 
-{-
+
 -- TASK
 -- Define the set of throws you can make in "Rock paper scissors" (RPS)
 data Throw : Set where
+  rock paper scissors : Throw
+
 
 -- TASK
 -- Define the relation of which throw loses to which other throw in RPS
 data LosesTo : Throw -> Throw -> Set where
+  -- rock loses to paper
+  rock-loses-to-paper : LosesTo rock paper
+  -- paper loses to scissors
+  paper-loses-to-scissors : LosesTo paper scissors
+  -- scissors loses to rock
+  scissors-loses-to-rock : LosesTo scissors rock
+
 
 -- TASK
 -- Prove that _==_ is transtivei
@@ -246,20 +253,25 @@ data LosesTo : Throw -> Throw -> Set where
   x == y ->
   y == z ->
   x == z
-==-trans = {! !}
+==-trans (refl _) (refl _) = refl _
+
 
 -- TASK
 -- Prove that you can add a suc to the right of a _+N_
 -- Note how this and +N-right-zero mirror the cases in the definition of +N
 +N-right-suc : (n m : Nat) -> suc (n +N m) == n +N suc m
-+N-right-suc = {! !}
++N-right-suc zero m = refl (suc m)
++N-right-suc (suc n) m = suc $= +N-right-suc n m
+
 
 -- TASK
 -- Prove +N commutative
 -- Hint: you'll need to apply almost all of the tools we have about reasoning for +N and == here
 +N-commut : (n m : Nat) -> n +N m == m +N n
-+N-commut = {! !}
++N-commut zero m = ==-symm (+N-right-zero m)
++N-commut (suc n) m = ==-trans (suc $= (+N-commut n m)) (+N-right-suc m n)
 
+{-
 -- A definition of the relation for "less than or equal to" between naturals
 data _<=_ : Nat -> Nat -> Set where
   -- We know that zero is ≤ anything else

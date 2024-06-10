@@ -156,7 +156,7 @@ not-not-eq ff = <> -- ?0
 not-not-eq tt = <> -- ?1
 
 _&&_ : Two -> Two -> Two
-ff && y = ff
+ff && _ = ff
 tt && y = y
 
 -- (x && y) && z == x && (y && z)
@@ -235,79 +235,114 @@ _ = inr <>
 
 -- explain uncommenting
 
-{-
+
 -- TASK
 -- Prove assocativity of proposoitioanl "or"
 +-assoc : {A B C : Set} -> A + (B + C) -> (A + B) + C
-+-assoc = ?
++-assoc (inl x) = inl (inl x)
++-assoc (inr (inl x)) = inl (inr x)
++-assoc (inr (inr x)) = inr x
 
 -- TASK
 -- Prove assocativity of proposoitioanl "and"
 *-assoc : {A B C : Set} -> A * (B * C) -> (A * B) * C
-*-assoc = ?
+*-assoc (fst1 , (fst2 , snd1)) = (fst1 , fst2) , snd1
+
 
 -- TASK
 -- Prove distributivity of * over +
 *-distrib-+ : {A B C : Set} -> A * (B + C) -> A * B + A * C
-*-distrib-+ = ?
+*-distrib-+ (fst1 , inl x) = inl (fst1 , x)
+*-distrib-+ (fst1 , inr x) = inr (fst1 , x)
+
 
 -- TASK
 -- Prove _&&_ commutative
 &&-commut : (b1 b2 : Two) -> TwoEq (b1 && b2) (b2 && b1)
-&&-commut = ?
+&&-commut ff ff = <>
+&&-commut ff tt = <>
+&&-commut tt ff = <>
+&&-commut tt tt = <>
+
 
 -- TASK
 -- Implement "or" over boolean values
 -- try to make the definition as "lazy" as possible, to make proofs easier!
 _||_ : Two -> Two -> Two
-_||_ = ?
+tt || y = tt
+ff || y = y
+
 
 -- TASK
 -- prove || commutative
 ||-commut : (b1 b2 : Two) -> TwoEq (b1 || b2) (b2 || b1)
-||-commut = {! !}
+||-commut ff ff = <>
+||-commut ff tt = <>
+||-commut tt ff = <>
+||-commut tt tt = <>
+
 
 -- TASK
 -- State assocativity of || and prove it
-||-assoc : {! !}
-||-assoc = {! !}
+||-assoc : (b1 b2 b3 : Two) -> TwoEq ((b1 || b2) || b3) (b1 || (b2 || b3))
+||-assoc ff ff ff = <>
+||-assoc ff ff tt = <>
+||-assoc ff tt b3 = <>
+||-assoc tt b2 b3 = <>
 
 -- TASK
 -- Define the NAND operation over bools
 nandTwo : Two -> Two -> Two
-nandTwo = ?
+nandTwo x y = not (x && y)
 
 -- TASK
 -- Define ff using tt and NAND
 nandff : Two
-nandff = ?
+nandff = nandTwo tt tt
+
 
 -- TASK
 -- Formulate and prove that nandff is the same thing as ff
+_ : TwoEq nandff ff
+_ = <>
+
 
 -- TASK
 -- Define negation using only nandTwo and any previously defined operations involving nand.
 nandNot : Two -> Two
-nandNot = ?
+nandNot = nandTwo tt
 
 -- TASK
 -- Formulate and prove that nandNot behaves the same way as not
+ffEqNandff : (x : Two) -> TwoEq (nandNot x) (not x)
+ffEqNandff ff = <>
+ffEqNandff tt = <>
 
 -- TASK
 -- Define _&&_ using only nandTwo and any previously defined operations involving nand.
 nandAnd : Two -> Two -> Two
-nandAnd = ?
+nandAnd x y = nandNot (nandTwo x y)
 
 -- TASK
 -- Formulate and prove that nandAnd beahves the same way as _&&_
+nandAndEq&& : (x y : Two) -> TwoEq (nandAnd x y) (x && y)
+nandAndEq&& ff y = <>
+nandAndEq&& tt ff = <>
+nandAndEq&& tt tt = <>
+
 
 -- TASK
 -- Define _||_ using only nandTwo and any previously defined operations involving nand.
 nandOr : Two -> Two -> Two
-nandOr = ?
+nandOr x y = nandNot (nandAnd (nandNot x) (nandNot y))
 
 -- TASK
 -- Formulate and prove that nandAnd beahves the same way as _||_
+nandOrEqOr : (x y : Two) -> TwoEq (nandOr x y) (x || y)
+nandOrEqOr ff ff = <>
+nandOrEqOr ff tt = <>
+nandOrEqOr tt y = <>
+
 
 -- TASK
 -- Define the structure of simple propositional expressions.
@@ -318,21 +353,36 @@ nandOr = ?
 --  4. "or-ing" two PropExprs
 --  5. "and-ing" two PropExprs
 data PropExpr : Set where
+  false : PropExpr
+  true : PropExpr
+  neg : PropExpr -> PropExpr
+  _or_ : PropExpr -> PropExpr -> PropExpr
+  _and_ : PropExpr -> PropExpr -> PropExpr
 
 -- TASK
 -- You should be able to "convert" a boolean to a PropExpr
 Two-to-PropExpr : Two -> PropExpr
-Two-to-PropExpr = ?
+Two-to-PropExpr ff = false
+Two-to-PropExpr tt = true
 
 -- TASK
 -- Execute a PropExpr by using the boolean operations that the constructors are named after
 interpProp : PropExpr -> Two
-interpProp = ?
+interpProp false = ff
+interpProp true = tt
+interpProp (neg x) = not (interpProp x)
+interpProp (x or y) = (interpProp x) || (interpProp y)
+interpProp (x and y) = (interpProp x) && (interpProp y)
 
 -- TASK
 -- Formulate and prove that if you take two Twos, Two-to-Propexpr them, combine them with your "and" constructor, and interpret them,
 -- the result is the same as just simply _&&_-ing the original Twos
+_ : (x y : Two) -> TwoEq (interpProp ((Two-to-PropExpr x) and (Two-to-PropExpr y))) (x && y)
+_ = λ { ff y -> <>
+      ; tt ff -> <>
+      ; tt tt -> <>}
 
+{-
 -- TASK
 -- Formulate and prove that TwoEq is
 --  1. reflexive
@@ -340,3 +390,19 @@ interpProp = ?
 --  3. transitive
 --  4. stable under function application, meaning TwoEq x y implies TwoEq (f x) (f y)
 -}
+
+twoEqReflexive : (x : Two) -> TwoEq x x
+twoEqReflexive = λ { ff -> <>
+                   ; tt -> <>}
+
+twoEqSymmetric : {x y : Two} -> TwoEq x y -> TwoEq y x
+twoEqSymmetric {ff} {ff} _ = <>
+twoEqSymmetric {tt} {tt} _ = <>
+
+twoEqTransitive : {x y z : Two} -> TwoEq x y -> TwoEq y z -> TwoEq x z
+twoEqTransitive {ff} {ff} {ff} <> <> = <>
+twoEqTransitive {tt} {tt} {tt} <> <> = <>
+
+twoEqStable : (x y : Two) (f : Two -> Two) -> TwoEq x y -> TwoEq (f x) (f y)
+twoEqStable ff ff f <> = twoEqReflexive (f ff)
+twoEqStable tt tt f <> = twoEqReflexive (f tt)
